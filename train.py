@@ -4,14 +4,12 @@ import torch
 import torch.nn as nn
 import logging
 from torch.nn import functional as F
-import torchvision
-
 import tqdm
 import numpy as np
 import os
 import argparse
 
-from OCRdataset import OCRDataset,NIHDataset
+from myDataset import MyDataset
 from model.Inception_resnetv2 import Inception_ResNetv2
 
 parser = argparse.ArgumentParser()
@@ -44,14 +42,14 @@ class Trainer:
         self.model.to(self.device)
 
         # 声明训练数据集
-        train_dataset = OCRDataset(data_path + '/train')
+        train_dataset = MyDataset(data_path + '/train')
         self.train_dataloader = DataLoader(train_dataset,
                                            batch_size=self.batch_size,
                                            num_workers=0,
                                            shuffle=True
                                            )
         # 声明测试数据集
-        test_dataset = OCRDataset(data_path + '/test')
+        test_dataset = MyDataset(data_path + '/test')
         self.test_dataloader = DataLoader(test_dataset,
                                           batch_size=self.batch_size,
                                           num_workers=0,
@@ -60,13 +58,17 @@ class Trainer:
         
 
         self.init_optimizer(lr=self.lr)
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = self.init_criterion()
         self.logger = self.init_logger()
 
     def init_optimizer(self, lr):
         # 用指定的学习率初始化优化器
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr, weight_decay=1e-3)
         self.lr = lr
+
+    def init_criterion(self):
+        # 构建损失函数
+        return nn.CrossEntropyLoss()
 
     def init_logger(self):
         # 1.显示创建
@@ -87,7 +89,6 @@ class Trainer:
 
     def load_model(self, model, model_dir="output"):
         checkpoint = torch.load(model_dir)
-
         model.load_state_dict(checkpoint["model_state_dict"], strict=False)
         torch.cuda.empty_cache()
         model.to(self.device)
@@ -112,8 +113,8 @@ class Trainer:
                               total=len(data_loader),
                               bar_format="{l_bar}{r_bar}")
 
-        total_loss = 0
-        # 存储所有预测的结果和标记, 用来计算auc
+        # 所有的指标
+        avg_loss = Averager()
         acc1 = Averager()
         acc5 = Averager()
         
@@ -122,26 +123,25 @@ class Trainer:
             label = data['label'].to(self.device)
             output = self.model(image)
 
-
             loss = self.criterion(output, label)
 
-
+            # 指标计算
             acc = self.topkAcc(output, label,topk=(1, 5))
             acc1.update(acc[0])
             acc5.update(acc[1])
+            avg_loss.update(loss.item())
+
             if train:
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-
-            total_loss += loss.item()
 
             if i % 50 == 0:
                 log_dic = {}
                 if train:
                     log_dic = {
                         "epoch": epoch, "state": str_code,
-                        "train_loss": total_loss / (i + 1), "train_acc1": acc1(),
+                        "train_loss": avg_loss(), "train_acc1": acc1(),
                         "train_acc5": acc5()
                     }
 
@@ -154,7 +154,7 @@ class Trainer:
 
         log_dic = {"epoch": epoch, "state": str_code, "acc1": acc1(), "acc5": acc5()}
         if train:
-            log_dic['train_loss'] = total_loss / (len(data_iter) + 1)
+            log_dic['train_loss'] = avg_loss()
             log_dic['lr'] = self.lr
         self.logger.info(log_dic)
 

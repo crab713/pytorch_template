@@ -7,16 +7,13 @@ from torchvision import transforms
 from PIL import Image
 import cv2
 import pandas as pd
+from myTransform import MyTransform
 
-
-class OCRDataset(Dataset):
+class MyDataset(Dataset):
     def __init__(self, data_path):
         self.data_path = data_path
         self.image_list = os.listdir(data_path)
-        self.transform = transforms.Compose([transforms.Resize((224,224)),
-                                            transforms.ToTensor(),
-                                            transforms.Normalize([0.485, 0.456, .406],[0.229, 0.224, 0.225])
-                                            ])
+        self.transform = MyTransform()
 
     def __len__(self):
         return len(self.image_list)
