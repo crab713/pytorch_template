@@ -1,5 +1,9 @@
 import torch
 
-a = torch.LongTensor([6])
-b = [1,2,1,1,1,3,4]
-print(a)
+x = torch.zeros(20, 64)
+y = torch.zeros(64, 256)
+z = torch.zeros(1, 256)
+
+output = x @ y + z
+
+print(output.shape)
