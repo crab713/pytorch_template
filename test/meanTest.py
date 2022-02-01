@@ -3,6 +3,11 @@ import torch.nn as nn
 import random
 from tqdm import tqdm
 import numpy as np
+
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 from model.lstm import LSTM
 
 

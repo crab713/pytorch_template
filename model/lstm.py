@@ -1,4 +1,5 @@
 import math
+from traceback import print_tb
 from typing import Tuple
 from matplotlib.pyplot import cla
 import torch
@@ -120,15 +121,18 @@ class LSTM(nn.Module):
         self.batch_first = batch_first
 
         self.cells = []
-        for i in range(num_layers):
-            if i == 0:
-                cell = LSTMCell(input_size, hidden_size)
-            else:
-                cell = LSTMCell(hidden_size, hidden_size)
-            self.cells.append(cell)
-            setattr(self, 'cell{}'.format(i), cell)
+        for i in range(self.num_directions):
+            self.cells.append([])
+        for i in range(self.num_directions):
+            for j in range(num_layers):
+                if j == 0:
+                    cell = LSTMCell(input_size, hidden_size)
+                else:
+                    cell = LSTMCell(hidden_size, hidden_size)
+                self.cells[i].append(cell)
+                setattr(self, 'cell{}_{}'.format(i,j), cell)
 
-    def check_forward_inputs(self, inputs:Tensor):
+    def check_forward_inputs(self, inputs:Tensor) -> None:
         if len(inputs.shape) != 3:
             raise RuntimeError(
                 'Input has inconsistent dimension: got {}, expect: 3'.format(
@@ -138,6 +142,37 @@ class LSTM(nn.Module):
             raise RuntimeError(
                 'Input has inconsistent input_size: got {}, expect: {}'.format(
                     inputs.size(2), self.input_size))
+    
+    def each_direction_forward(self, inputs:Tensor, direction: int = 0) -> Tensor:
+        r"""
+        Inputs: inputs, forward
+            - inputs shape:[seq_len, batch, input_size]
+            - direction: which direction now, if forward then i mod 2 == 0. Default:0
+        
+        Outputs: outputs
+            - outputs shape:[seq_len, batch, hidden_size]
+        """
+        batch_size = inputs.size(1)
+        seq_len = inputs.size(0)
+        step_direction = 1 if direction%2==0 else -1
+        outputs = []
+        h_history = [[] for _ in range(self.num_layers)]
+        c_history = [[] for _ in range(self.num_layers)]
+        # TODO 
+        for step in range(seq_len):
+            t = step 
+            for cell_idx, cell in enumerate(self.cells[direction]):
+                input = inputs[t] if cell_idx==0 else h_history[cell_idx-1][step]
+                state = (h_history[cell_idx][step-1], c_history[cell_idx][step-1]) if step!=0 else None
+
+                hn,cn = cell(input, state)
+                
+                h_history[cell_idx].append(hn)
+                c_history[cell_idx].append(cn)
+            outputs.append(hn)
+        outputs = torch.stack(outputs, dim=0)
+        return outputs
+
 
     def forward(self, inputs: Tensor) -> Tensor:
         r"""
@@ -157,21 +192,11 @@ class LSTM(nn.Module):
             # NOTE inputs: [seq_len, batch, input_size]
 
         outputs = []
-        h_history = [[] for _ in range(self.num_layers)]
-        c_history = [[] for _ in range(self.num_layers)]
-        for step, _ in enumerate(inputs):
-            for cell_idx, cell in enumerate(self.cells):
-                if cell_idx==0:
-                    hn, cn = cell(inputs[step])
-                elif step==0:
-                    hn, cn = cell(h_history[cell_idx-1][step])
-                else:
-                    hn, cn = cell(h_history[cell_idx-1][step], (h_history[cell_idx][step-1], c_history[cell_idx][step-1]))
-                h_history[cell_idx].append(hn)
-                c_history[cell_idx].append(cn)
-            outputs.append(hn)
-        
-        outputs = torch.stack(outputs, dim=0)
+        for direction in range(self.num_directions):
+            output = self.each_direction_forward(inputs, direction)       
+            outputs.append(output)
+
+        outputs = torch.cat(outputs, dim=2)
         if self.batch_first:
             outputs = outputs.permute(1, 0, 2)
         return outputs, (None,None)
