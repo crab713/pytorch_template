@@ -9,7 +9,7 @@ import numpy as np
 import os
 import argparse
 
-from myDataset import MyDataset
+from dataset.myDataset import MyDataset
 from model.Inception_resnetv2 import Inception_ResNetv2
 
 parser = argparse.ArgumentParser()

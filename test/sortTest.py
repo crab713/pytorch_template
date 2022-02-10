@@ -14,7 +14,7 @@ from model.lstm import LSTM
 class SortModel(nn.Module):
     def __init__(self):
         super().__init__()
-        self.encoder = nn.LSTM(64, 256, 2, batch_first=True, dropout=0.5, bidirectional=True)
+        self.encoder = LSTM(64, 256, 2, batch_first=True, bidirectional=True)
         self.dense = nn.Linear(512, 64)
     
     def forward(self, inputs)->torch.Tensor:
@@ -69,7 +69,7 @@ for i in tqdm(range(5000)):
     optimizer.step()
     optimizer.zero_grad()
 
-    if (i+1)%1000 == 0:
+    if (i+1)%500 == 0:
         print()
         print('array:', torch.argmax(inputs[0], dim=1))
         print('real:', end='')

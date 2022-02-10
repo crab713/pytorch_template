@@ -1,18 +1,17 @@
 from typing import Union
 import PIL
 from torch import Tensor
-from img_process import processImg
 from model.Inception_resnetv2 import Inception_ResNetv2
 import torch
 from torchvision import transforms
 from PIL import Image
-from config import CLASSES
-from myTransform import MyTransform
+from dataset.base.myTransform import MyTransform
 
 
 class OutputProcess():
     def __init__(self) -> None:
-        self.classes = CLASSES
+        self.classes = None
+        assert self.classes is not None, '推理无类别'
 
     def __call__(self, output:Tensor) -> list:
         result = self.trans(output)

@@ -14,7 +14,7 @@ from model.lstm import LSTM
 class SortModel(nn.Module):
     def __init__(self):
         super().__init__()
-        self.encoder = LSTM(64, 256, 2, batch_first=True)
+        self.encoder = nn.LSTM(64, 256, 2, batch_first=True)
         self.dense = nn.Linear(256, 64)
     
     def forward(self, inputs)->torch.Tensor:

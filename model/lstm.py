@@ -13,7 +13,6 @@ class LSTMCell(nn.Module):
     Args:
         input_size: The number of expected features in the input `x`
         hidden_size: The number of features in the hidden state `h`
-
     Inputs: input, (h_0, c_0)
     
     Outputs: (h_1, c_1)
@@ -107,7 +106,6 @@ class LSTM(nn.Module):
         dropout: if non-zero, introduces a `Dropout` layer on the outputs of each
             LSTM layer except the last layer. Default: 0
         bidirectional: if True, becomes a bidirectional LSTM. Default: False
-
     """
     def __init__(self, input_size: int, hidden_size: int, num_layers: int = 1, dropout: int = 0,
                  bidirectional: bool = False, batch_first: bool = True):
@@ -152,15 +150,14 @@ class LSTM(nn.Module):
         Outputs: outputs
             - outputs shape:[seq_len, batch, hidden_size]
         """
-        batch_size = inputs.size(1)
         seq_len = inputs.size(0)
         step_direction = 1 if direction%2==0 else -1
+        
         outputs = []
         h_history = [[] for _ in range(self.num_layers)]
         c_history = [[] for _ in range(self.num_layers)]
-        # TODO 
         for step in range(seq_len):
-            t = step 
+            t = step if step_direction==1 else seq_len-step-1
             for cell_idx, cell in enumerate(self.cells[direction]):
                 input = inputs[t] if cell_idx==0 else h_history[cell_idx-1][step]
                 state = (h_history[cell_idx][step-1], c_history[cell_idx][step-1]) if step!=0 else None
@@ -170,9 +167,8 @@ class LSTM(nn.Module):
                 h_history[cell_idx].append(hn)
                 c_history[cell_idx].append(cn)
             outputs.append(hn)
-        outputs = torch.stack(outputs, dim=0)
+        outputs = torch.stack(outputs[::step_direction], dim=0)
         return outputs
-
 
     def forward(self, inputs: Tensor) -> Tensor:
         r"""
@@ -195,7 +191,6 @@ class LSTM(nn.Module):
         for direction in range(self.num_directions):
             output = self.each_direction_forward(inputs, direction)       
             outputs.append(output)
-
         outputs = torch.cat(outputs, dim=2)
         if self.batch_first:
             outputs = outputs.permute(1, 0, 2)
