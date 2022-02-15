@@ -1,25 +1,34 @@
+from typing import Tuple
 from torch import Tensor
-from img_process import processImg
-from model.Inception_resnetv2 import Inception_ResNetv2
 from torchvision import transforms
 from PIL import Image
-from config import CLASSES
-
+import numpy as np
+import torch
+import cv2
 
 class MyTransform():
-    def __init__(self) -> None:
-        self.transform = transforms.Compose([transforms.Resize((224,224)),
-                                            transforms.ToTensor(),
+    def __init__(self, height = 224, width = 224) -> None:
+        self.transform = transforms.Compose([transforms.ToTensor(),
+                                            transforms.Resize([height, width]),
                                             transforms.Normalize([0.485, 0.456, .406],[0.229, 0.224, 0.225])
                                             ])
+        self.height = height
+        self.width = width
 
-    def __call__(self, values):
-        if isinstance(values, str):
-            values = Image.open(values)
+    def __call__(self, values : np.ndarray) -> Tensor:
+        # value [frame, h, w, c]
         if isinstance(values, Tensor):
             return values
+        if len(values.shape) != 4:
+            raise RuntimeError(
+                'values has inconsistent shape: got {}, expect length 4'
+                    .format(values.shape))
+        
 
-        values = self.transform(values)
-        if len(values.shape) == 3:
-            values = values.unsqueeze(0)
-        return values
+        (frames_num, h, w, c) = values.shape
+        outputs = torch.zeros((frames_num, c, self.height, self.width))
+        for i in range(frames_num):
+            frame = self.transform(values[i])
+            outputs[i] = frame
+        
+        return outputs # [frames_num, c, h, w]
