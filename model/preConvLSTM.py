@@ -7,7 +7,7 @@ from torch import Tensor
 import torch.nn as nn
 import torch
 
-from model.base.convLstm import ConvLSTM
+from model.base.myConvLstm import ConvLSTM
 from model.base.Resnet50 import ResModel
 
 
