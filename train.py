@@ -10,7 +10,7 @@ import os
 import argparse
 
 from dataset.myDataset import MyDataset
-from model.Inception_resnetv2 import Inception_ResNetv2
+from model.base.GhostNet import ghost_net
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch_size', type=int, default=4)
@@ -21,24 +21,27 @@ parser.add_argument('--epoch', type=int, default=100)
 parser.add_argument('--save_path', type=str, default='output/')
 parser.add_argument('--save_epoch', type=int, default=4, help='save every n epochs')
 parser.add_argument('--data_path', type=str, default="/home/Data/CarData/" ,help='root of data, consist train and test')
+parser.add_argument('--device', type=str, default="cuda:0", help='chose device to train(only support single)')
+parser.add_argument('--log_file', type=str, default='train.log', help='path to save train log')
+parser.add_argument('--model_name', type=str, default='model', help='save checkpoint name')
 
 class Trainer:
     def __init__(self,
                  batch_size,
                  lr,  # 学习率
                  data_path,
-                 classes=242,
-                 with_cuda=True,  # 是否使用GPU, 如未找到GPU, 则自动切换CPU
+                 device='cuda:0',
+                 log_file='train.log',
+                 model_name='model'
                  ):
         self.batch_size = batch_size
         self.lr = lr
-        self.classes = classes
 
         # 判断是否有可用GPU
-        cuda_condition = torch.cuda.is_available() and with_cuda
-        self.device = torch.device("cuda:0" if cuda_condition else "cpu")
+        cuda_condition = torch.cuda.is_available()
+        self.device = torch.device(device if cuda_condition else "cpu")
         # 将模型发送到计算设备(GPU或CPU)
-        self.model = Inception_ResNetv2(classes=classes)
+        self.model = ghost_net(num_classes = 6)
         self.model.to(self.device)
 
         # 声明训练数据集
@@ -59,20 +62,29 @@ class Trainer:
 
         self.init_optimizer(lr=self.lr)
         self.criterion = self.init_criterion()
-        self.logger = self.init_logger()
+
+        self.log_file = log_file
+        self.logger = self.init_logger(self.log_file)
+        self.model_name = model_name
 
     def init_optimizer(self, lr):
         # 用指定的学习率初始化优化器
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr, weight_decay=1e-3)
         self.lr = lr
 
+    def adjust_optimizer(self, lr):
+        # 用指定的学习率调整化优化器
+        for param_group in self.optimizer.param_groups:
+            param_group['lr'] = lr
+        self.lr = lr
+
     def init_criterion(self):
         # 构建损失函数
         return nn.CrossEntropyLoss()
 
-    def init_logger(self):
+    def init_logger(self, file_name):
         # 1.显示创建
-        logging.basicConfig(filename='train.log', format='%(asctime)s - %(levelname)s - %(message)s',
+        logging.basicConfig(filename=file_name, format='%(asctime)s - %(levelname)s - %(message)s',
                             level=logging.INFO)
 
         # 2.定义logger,设定setLevel，FileHandler，setFormatter
@@ -186,12 +198,13 @@ class Trainer:
         dic_lis = sorted(dic_lis, key=lambda k: int(k.split(".")[-1]))
         return dir_path + "/" + dic_lis[-1]
 
-    def save_state_dict(self, model, epoch, state_dict_dir="output", file_name="car.model"):
+    def save_state_dict(self, model, epoch, state_dict_dir="output/"):
         """存储当前模型参数"""
         if not os.path.exists(state_dict_dir):
             os.mkdir(state_dict_dir)
-        save_path = state_dict_dir + "/" + file_name + ".epoch.{}".format(str(epoch))
+        save_path = state_dict_dir + self.model_name + ".{}.pth".format(str(epoch))
         model.to("cpu")
+        model.eval()
         torch.save({"model_state_dict": model.state_dict()}, save_path)
         print("{} saved!".format(save_path))
         model.to(self.device)
@@ -214,25 +227,29 @@ class Averager():
 if __name__ == '__main__':
     args = parser.parse_args()
     start_epoch = 0
-    trainer = Trainer(args.batch_size, args.warning_rate, data_path=args.data_path)
+    trainer = Trainer(args.batch_size, args.warning_rate, data_path=args.data_path, device=args.device, 
+                    log_file=args.log_file, model_name=args.model_name)
 
     all_acc = []
     threshold = 999
     patient = 10
     best_loss = 999999999
+    
+    lr = args.warning_rate if start_epoch == 0 else args.lr
     if args.model_dir is not None:
-        trainer.load_model(trainer.model, args.model_dir)
+        trainer.load_model(args.model_dir)
     for epoch in range(start_epoch, start_epoch + args.epoch):
         print("train with learning rate {}".format(str(trainer.lr)))
         # 训练一个epoch
         trainer.train(epoch)
-        if epoch == start_epoch:
-            trainer.init_optimizer(args.lr)
+        if epoch == start_epoch + args.warning_epoch - 1:
+            lr = args.lr
+            trainer.adjust_optimizer(lr)
+        
+        acc = trainer.test(epoch)
         if epoch % args.save_epoch == 0:
             # 保存当前epoch模型参数
-            trainer.save_state_dict(trainer.model, epoch, args.save_path)
-
-        acc = trainer.test(epoch)
+            trainer.save_state_dict(epoch, args.save_path)
 
         if acc > 0.98:
             trainer.logger.info('train finish, epoch=%d, acc=%d' % (epoch, acc))
@@ -241,11 +258,13 @@ if __name__ == '__main__':
         best_acc = max(all_acc)
         if all_acc[-1] < best_acc:
             threshold += 1
-            args.lr *= 0.8
-            trainer.init_optimizer(lr=args.lr)
+            lr *= 0.9
+            trainer.adjust_optimizer(lr=lr)
         else:
             # 如果
             threshold = 0
+            lr *= 1.1
+            trainer.adjust_optimizer(lr=lr)
 
         if threshold >= patient:
             print("epoch {} has the lowest loss".format(start_epoch + np.argmax(np.array(all_acc))))
