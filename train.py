@@ -10,7 +10,7 @@ import os
 import argparse
 
 from dataset.myDataset import MyDataset
-from model.base.GhostNet import ghost_net
+from model.elimator import Elimator
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch_size', type=int, default=4)
@@ -41,7 +41,7 @@ class Trainer:
         cuda_condition = torch.cuda.is_available()
         self.device = torch.device(device if cuda_condition else "cpu")
         # 将模型发送到计算设备(GPU或CPU)
-        self.model = ghost_net(num_classes = 6)
+        self.model = Elimator()
         self.model.to(self.device)
 
         # 声明训练数据集

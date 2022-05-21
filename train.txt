@@ -1,1 +1,0 @@
-{"name":"test.mp4", "total_frame":1200, "label":"REAL"}

@@ -1,8 +1,9 @@
-print('wocao')
+from model.elimator import Elimator
 import torch
-from torch import nn
 
-conv1 = nn.Conv2d(1, 5, 3, padding=1)
 
-x = torch.FloatTensor(1,1,100,100)
-print(conv1(x).shape)
+model = Elimator(num_classes=4).cuda()
+inputs = torch.ones(1, 3, 512, 512).cuda()
+outputs = model(inputs)
+wait = input()
+print(outputs.shape)
