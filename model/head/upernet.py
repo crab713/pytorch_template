@@ -122,7 +122,12 @@ class UPerHead(nn.Module):
             self.channels,
             3,
             padding=1)
-        self.cls_seg = nn.Conv2d(channels, num_classes, kernel_size=1)
+
+        # self.cls_seg = nn.Conv2d(channels, num_classes, kernel_size=1)
+
+        # DIY for elimator
+        self.reg_seg = nn.Conv2d(channels, num_classes, kernel_size=1)
+        self.conf_seg = nn.Conv2d(channels, 1, kernel_size=1)
 
     def _transform_inputs(self, inputs):
         """Transform inputs for decoder.
@@ -200,8 +205,11 @@ class UPerHead(nn.Module):
                 align_corners=self.align_corners)
         fpn_outs = torch.cat(fpn_outs, dim=1)
         output = self.fpn_bottleneck(fpn_outs) # 2，512，128，128
-        output = self.cls_seg(output)
-        return output
+
+        reg_output = torch.sigmoid(self.reg_seg(output))
+        conf_output = torch.sigmoid(self.conf_seg(output))
+        result = torch.cat((conf_output, reg_output), dim=1)
+        return result
 
 if __name__ == '__main__':
     model = UPerHead(in_channels=[128, 256, 512, 1024],
@@ -209,7 +217,7 @@ if __name__ == '__main__':
         pool_scales=(1, 2, 3, 6),
         channels=512,
         dropout_ratio=0.1,
-        num_classes=7)
+        num_classes=3)
 
     inputs = [torch.ones(2, 128, 128, 128),
              torch.ones(2, 256, 64, 64),

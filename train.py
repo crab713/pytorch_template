@@ -1,9 +1,11 @@
+from typing import Tuple
 from numpy.core.arrayprint import printoptions
 from torch.utils.data import DataLoader
 import torch
 import torch.nn as nn
 import logging
 from torch.nn import functional as F
+from torch import Tensor
 import tqdm
 import numpy as np
 import os
@@ -61,7 +63,7 @@ class Trainer:
         
 
         self.init_optimizer(lr=self.lr)
-        self.criterion = self.init_criterion()
+        # self.criterion = self.init_criterion()
 
         self.log_file = log_file
         self.logger = self.init_logger(self.log_file)
@@ -78,8 +80,10 @@ class Trainer:
             param_group['lr'] = lr
         self.lr = lr
 
-    def init_criterion(self):
+    def criterion(self, img: Tensor, outputs: Tensor, gt: Tensor):
         # 构建损失函数
+        
+
         return nn.CrossEntropyLoss()
 
     def init_logger(self, file_name):

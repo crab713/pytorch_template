@@ -1,6 +1,7 @@
 import torch
 from torch import Tensor
 import cv2
+from torch.nn import functional as F
 import torch.nn as nn
 
 from .backbone.swin import SwinTransformer
@@ -22,9 +23,9 @@ class Elimator(nn.Module):
                                 channels=512,
                                 dropout_ratio=0.1,
                                 num_classes=num_classes)
+        self.UpSample = nn.Upsample((img_size, img_size), mode='bilinear', align_corners=False)
 
         self.backbone.init_weights()
-        
     
     def check_input(self, inputs: Tensor) -> None:
         if not isinstance(inputs, Tensor):
@@ -37,10 +38,9 @@ class Elimator(nn.Module):
                 "Input has inconsistent image shape: got {}, except {}".format(
                     (inputs.size(2), inputs.size(3)), self.img_size))
 
-
     def forward(self, inputs: Tensor) -> Tensor:
         self.check_input(inputs)
-
         features = self.backbone(inputs)
-        output = self.decoder(features)
+        seg_logit = self.decoder(features)
+        output = self.UpSample(seg_logit)
         return output
